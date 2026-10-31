@@ -1,0 +1,16 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfplan
+terraform.tfvars
+*.auto.tfvars
+
+# AWS credentials
+.aws/
+.env
+.env.*
+
+# Local files
+.DS_Store
+*.log
