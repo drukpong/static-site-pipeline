@@ -1,0 +1,128 @@
+
+name: Static Site CI and Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate website
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Validate website files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+
+          site = Path("site")
+          html_file = site / "index.html"
+          css_file = site / "css" / "style.css"
+
+          if not html_file.is_file():
+              raise SystemExit("ERROR: site/index.html is missing")
+
+          if not css_file.is_file():
+              raise SystemExit("ERROR: site/css/style.css is missing")
+
+          class SiteParser(HTMLParser):
+              pass
+
+          parser = SiteParser()
+          parser.feed(html_file.read_text(encoding="utf-8"))
+          parser.close()
+
+          html = html_file.read_text(encoding="utf-8")
+
+          if "<title>" not in html.lower():
+              raise SystemExit("ERROR: HTML title is missing")
+
+          if "css/style.css" not in html:
+              raise SystemExit("ERROR: Stylesheet link is missing")
+
+          print("Website validation passed!")
+          PY
+
+  deploy-preview:
+    name: Deploy preview
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy to preview S3 bucket
+        run: |
+          aws s3 sync site/ \
+            s3://static-site-pipeline-preview-189750305972 \
+            --delete
+
+      - name: Invalidate preview CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/preview" "/preview/*"
+
+  deploy-production:
+    name: Deploy production
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy to production S3 bucket
+        run: |
+          aws s3 sync site/ \
+            s3://static-site-pipeline-prod-189750305972 \
+            --delete
+
+      - name: Invalidate production CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"
