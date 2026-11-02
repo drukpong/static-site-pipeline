@@ -32,7 +32,7 @@ data "aws_iam_policy_document" "github_production_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:Drukpong/static-site-pipeline:ref:refs/heads/main"]
+      values   = ["repo:drukpong@293003264/static-site-pipeline@1441101973:ref:refs/heads/main"]
     }
   }
 }
@@ -57,7 +57,7 @@ data "aws_iam_policy_document" "github_preview_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:Drukpong/static-site-pipeline:ref:refs/heads/develop"]
+      values   = ["repo:drukpong@293003264/static-site-pipeline@1441101973:ref:refs/heads/develop"]
     }
   }
 }
